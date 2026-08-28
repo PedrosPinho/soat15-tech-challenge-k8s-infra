@@ -8,15 +8,31 @@ repositório da aplicação.
 ## Escopo deste repositório
 
 - `aws_eks_cluster` + managed node group (`t3.small`, min 2 / max 4) nas subnets
-  privadas da VPC exportada por
-  [`db-infra`](https://github.com/PedrosPinho/soat15-tech-challenge-db-infra)
-- Addons: `vpc-cni`, `coredns`, `kube-proxy`, `metrics-server` (pré-requisito do HPA)
-- AWS Load Balancer Controller via Helm
-- `aws_ecr_repository` para a imagem da API
+  **públicas** da VPC exportada por
+  [`db-infra`](https://github.com/PedrosPinho/soat15-tech-challenge-db-infra) —
+  diverge do texto original de `PHASE_3_PLAN.md` ("subnets privadas"): como a VPC não
+  tem NAT Gateway (decisão de `db-infra`, orçamento do Learner Lab), nós em subnet
+  privada não alcançariam ECR/API do EKS. O security group customizado
+  `eks_nodes_security_group_id` (exportado por `db-infra`) é anexado às instâncias via
+  launch template para manter o tráfego restrito, já que o isolamento não vem mais da
+  subnet.
+- Addons: `vpc-cni`, `coredns`, `kube-proxy` via `aws_eks_addon`; `metrics-server`
+  (pré-requisito do HPA) via `helm_release` — ver decisão em `addons.tf`.
+- AWS Load Balancer Controller via Helm, sem annotation de IRSA no ServiceAccount
+  (herda a `LabRole` pelo instance profile do nó). Subnets tagueadas
+  (`aws_ec2_tag`) para a auto-descoberta que o controller precisa.
+- `aws_ecr_repository` para a imagem da API, com lifecycle policy mantendo as
+  últimas ~10 imagens.
 - **Sem IRSA** — cluster role e node role são a `LabRole` compartilhada, concessão
   deliberada documentada em
   [`ADR-006`](https://github.com/PedrosPinho/soat15-tech-challenge-01/blob/main/docs/architecture/adrs/ADR-006-labrole-compartilhada-sem-irsa.md)
   no repositório da aplicação
+- **Fora de escopo por ora**: aplicar os manifestos de `k8s/` do repositório da
+  aplicação (deployment, service, hpa, configmap, secret, namespace) dentro deste
+  Terraform. Fica como acompanhamento futuro — candidato natural a um `helm_release`
+  apontando para um chart local ou a `kubectl_manifest` (provider `gavinbunney/kubectl`
+  ou `hashicorp/kubernetes` via `kubernetes_manifest`), aplicado depois que a imagem
+  já existir no ECR.
 
 ## Dependências
 
