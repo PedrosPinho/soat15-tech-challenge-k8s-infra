@@ -1,0 +1,128 @@
+name: Terraform
+
+# k8s-infra depende de db-infra já aplicado (VPC/subnets via terraform_remote_state)
+# — aplicar depois dele, mesma ordem documentada no PHASE_3_EXECUTION_GUIDE.md do
+# repositório da aplicação. Diferente de db-infra, não usa workspaces: homolog e
+# prod compartilham o mesmo cluster EKS, separados por namespace no lado da
+# aplicação (ver k8s/README.md em soat15-tech-challenge-01).
+#
+# Credenciais: sessão temporária do AWS Academy Learner Lab (sem OIDC — IAM
+# bloqueado). AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN em GitHub
+# Secrets, renovados por scripts/refresh-aws-secrets.sh (repo da aplicação) no
+# início de cada sessão — se falhar com ExpiredToken, rode o script de novo.
+
+on:
+  pull_request:
+    branches: [main, homolog]
+  push:
+    branches: [main, homolog]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.9.5"
+  CLUSTER_NAME: soat15-tc-cluster
+
+jobs:
+  fmt-validate:
+    name: fmt + validate + tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - run: terraform fmt -check -recursive
+
+      - run: terraform init -backend=false
+
+      - run: terraform validate
+
+      - uses: terraform-linters/setup-tflint@v4
+
+      - name: tflint
+        continue-on-error: true
+        run: |
+          tflint --init
+          tflint -f compact
+
+  plan:
+    name: Plan
+    needs: fmt-validate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - run: terraform init
+
+      - name: Plan
+        id: plan
+        run: |
+          set -o pipefail
+          terraform plan -no-color -input=false -out=tfplan | tee plan-output.txt
+          {
+            echo "plan<<PLAN_EOF"
+            tail -c 60000 plan-output.txt
+            echo "PLAN_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comentar plan no PR
+        uses: actions/github-script@v7
+        env:
+          PLAN: ${{ steps.plan.outputs.plan }}
+        with:
+          script: |
+            const body = `## Terraform Plan — k8s-infra\n<details><summary>Ver plano</summary>\n\n\`\`\`\n${process.env.PLAN}\n\`\`\`\n</details>`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+  apply:
+    name: Apply
+    needs: fmt-validate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - run: terraform init
+
+      - run: terraform apply -auto-approve -input=false
+
+      - name: Smoke test — kubectl get nodes
+        run: |
+          aws eks update-kubeconfig --name "${{ env.CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+          kubectl get nodes
+          kubectl wait --for=condition=Ready nodes --all --timeout=180s
