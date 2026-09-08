@@ -23,6 +23,11 @@ repositório da aplicação.
   (`aws_ec2_tag`) para a auto-descoberta que o controller precisa.
 - `aws_ecr_repository` para a imagem da API, com lifecycle policy mantendo as
   últimas ~10 imagens.
+- `nri-bundle` (agente de infraestrutura do New Relic) via Helm — gated por
+  `var.enable_new_relic` (default `false`; sem license key válida o pod entra
+  em `CrashLoopBackOff`). O pipeline liga a flag sozinho quando o GitHub
+  Secret `NEW_RELIC_LICENSE_KEY` existir — ver `newrelic.tf` e a seção
+  [CI/CD](#cicd).
 - **Sem IRSA** — cluster role e node role são a `LabRole` compartilhada, concessão
   deliberada documentada em
   [`ADR-006`](https://github.com/PedrosPinho/soat15-tech-challenge-01/blob/main/docs/architecture/adrs/ADR-006-labrole-compartilhada-sem-irsa.md)
@@ -55,8 +60,31 @@ terraform apply tfplan
 # smoke test pós-apply
 aws eks update-kubeconfig --name soat15-tc-cluster --region us-east-1
 kubectl get nodes
-kubectl get hpa -n oficina
+kubectl get hpa -n oficina-homolog   # ou oficina-prod
 ```
+
+## CI/CD
+
+Pipeline em `.github/workflows/terraform.yml`: `fmt` → `validate` → `tflint` →
+`plan` (em PR, comentado no PR) → `apply` (push em `homolog`/`main`) + smoke
+test `kubectl get nodes`/`wait --for=condition=Ready`. Homolog e prod
+**compartilham o mesmo cluster** (sem workspaces aqui — a separação é por
+namespace no lado da aplicação), então o `apply` de qualquer uma das duas
+branches atualiza a mesma infraestrutura.
+
+**Secrets do GitHub**: `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/
+`AWS_SESSION_TOKEN` (credenciais temporárias do Learner Lab, renovadas por
+`scripts/refresh-aws-secrets.sh` no repositório da aplicação) e,
+opcionalmente, `NEW_RELIC_LICENSE_KEY` (liga o `nri-bundle`, ver acima).
+
+**Atenção a `var.cluster_version`**: precisa sempre bater com a versão que o
+cluster está rodando *de verdade* (não a que foi pedida na criação) — EKS não
+suporta downgrade, e um diff pendente nesse atributo quebra o `apply` inteiro
+(os providers `kubernetes`/`helm` deste repositório, configurados a partir de
+atributos do `aws_eks_cluster`, param de conseguir autenticar enquanto o
+recurso tem qualquer mudança pendente). Se o `apply` começar a falhar com
+`system:anonymous cannot list resource "secrets"`, confira primeiro se a AWS
+não fez um upgrade de versão fora deste Terraform.
 
 ## Ciclo de sessão do Learner Lab
 
