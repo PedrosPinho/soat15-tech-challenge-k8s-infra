@@ -16,18 +16,6 @@ on:
     branches: [main, homolog]
   push:
     branches: [main, homolog]
-  # Escape hatch temporário para destravar mudanças no aws_eks_cluster (ex.:
-  # access_config) sem que o apply normal tropece no problema conhecido do
-  # Terraform de provider kubernetes/helm configurado a partir de atributos
-  # computados de um recurso com diff pendente (ver PHASE_3_TASKS.md,
-  # achado 2026-09-08) -- roda só quando disparado manualmente com um alvo
-  # explícito. Remover depois de resolvido de vez.
-  workflow_dispatch:
-    inputs:
-      target:
-        description: 'Args -target= extras para terraform apply (ex.: "-target=aws_eks_cluster.this -target=aws_eks_access_entry.voclabs")'
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -112,7 +100,7 @@ jobs:
   apply:
     name: Apply
     needs: fmt-validate
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
     steps:
@@ -138,7 +126,7 @@ jobs:
             echo "TF_VAR_new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}" >> "$GITHUB_ENV"
           fi
 
-      - run: terraform apply -auto-approve -input=false ${{ github.event.inputs.target }}
+      - run: terraform apply -auto-approve -input=false
 
       - name: Smoke test — kubectl get nodes
         run: |
