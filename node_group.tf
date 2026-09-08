@@ -36,6 +36,7 @@ resource "aws_eks_node_group" "this" {
   subnet_ids      = data.terraform_remote_state.db_infra.outputs.public_subnet_ids
 
   instance_types = [var.node_instance_type]
+  ami_type       = "AL2023_x86_64_STANDARD"
 
   scaling_config {
     min_size     = var.node_min_size
