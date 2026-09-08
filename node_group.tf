@@ -13,6 +13,17 @@ resource "aws_launch_template" "nodes" {
     data.terraform_remote_state.db_infra.outputs.eks_nodes_security_group_id,
   ]
 
+  # Sem esse bloco, um launch template custom volta pro default da API
+  # (hop limit 1), que só deixa o processo do próprio host ler o IMDS — pods
+  # (ex.: aws-load-balancer-controller, sem IRSA disponível no Learner Lab,
+  # depende do IMDS do node pra pegar a LabRole) ficam a 2 hops e recebem
+  # "no EC2 IMDS role found".
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
   tag_specifications {
     resource_type = "instance"
     tags = {
