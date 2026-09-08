@@ -17,9 +17,9 @@ variable "project_name" {
 }
 
 variable "cluster_version" {
-  description = "Versão do Kubernetes no EKS"
+  description = "Versão do Kubernetes no EKS -- 1.31 porque é a que o cluster real está rodando hoje (EKS não suporta downgrade; o default aqui precisa sempre bater com a versão ao vivo, não com o que foi pedido na criação)."
   type        = string
-  default     = "1.30"
+  default     = "1.31"
 }
 
 variable "node_instance_type" {

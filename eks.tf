@@ -19,6 +19,14 @@ resource "aws_eks_cluster" "this" {
     endpoint_private_access = true
     endpoint_public_access  = true
   }
+
+  # API_AND_CONFIG_MAP (não API puro): migração aditiva, mantém compatibilidade
+  # com o que já dependia do modo CONFIG_MAP default, e permite gerenciar
+  # acesso via EKS Access Entries (ver eks_access.tf) em vez do aws-auth
+  # ConfigMap manual.
+  access_config {
+    authentication_mode = "API_AND_CONFIG_MAP"
+  }
 }
 
 # --- Providers Kubernetes/Helm ----------------------------------------------------
