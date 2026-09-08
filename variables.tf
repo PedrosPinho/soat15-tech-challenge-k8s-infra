@@ -43,3 +43,16 @@ variable "ecr_repository_name" {
   type        = string
   default     = "soat15-tc-oficina-api"
 }
+
+variable "enable_new_relic" {
+  description = "Liga o nri-bundle (agente de infraestrutura do New Relic) no cluster. Fica false até existir uma license key válida (TF_VAR_new_relic_license_key) -- sem ela, o pod entra em CrashLoopBackOff."
+  type        = bool
+  default     = false
+}
+
+variable "new_relic_license_key" {
+  description = "License key de ingestão do New Relic (conta free tier) -- passe via TF_VAR_new_relic_license_key, nunca em texto no repositório."
+  type        = string
+  default     = ""
+  sensitive   = true
+}

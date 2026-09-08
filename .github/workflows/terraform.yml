@@ -119,6 +119,13 @@ jobs:
 
       - run: terraform init
 
+      - name: New Relic (opcional -- liga o nri-bundle só quando a license key existir)
+        run: |
+          if [ -n "${{ secrets.NEW_RELIC_LICENSE_KEY }}" ]; then
+            echo "TF_VAR_enable_new_relic=true" >> "$GITHUB_ENV"
+            echo "TF_VAR_new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}" >> "$GITHUB_ENV"
+          fi
+
       - run: terraform apply -auto-approve -input=false
 
       - name: Smoke test — kubectl get nodes
