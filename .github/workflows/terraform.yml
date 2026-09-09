@@ -126,6 +126,15 @@ jobs:
             echo "TF_VAR_new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}" >> "$GITHUB_ENV"
           fi
 
+      - name: New Relic dashboards/alertas (opcional -- precisa de User API Key + Account ID, credencial diferente da license key acima)
+        run: |
+          if [ -n "${{ secrets.NEW_RELIC_API_KEY }}" ] && [ -n "${{ secrets.NEW_RELIC_ACCOUNT_ID }}" ]; then
+            echo "TF_VAR_enable_new_relic_dashboards=true" >> "$GITHUB_ENV"
+            echo "TF_VAR_new_relic_api_key=${{ secrets.NEW_RELIC_API_KEY }}" >> "$GITHUB_ENV"
+            echo "TF_VAR_new_relic_account_id=${{ secrets.NEW_RELIC_ACCOUNT_ID }}" >> "$GITHUB_ENV"
+            echo "TF_VAR_alert_notification_email=${{ secrets.ALERT_NOTIFICATION_EMAIL }}" >> "$GITHUB_ENV"
+          fi
+
       - run: terraform apply -auto-approve -input=false
 
       - name: Smoke test — kubectl get nodes

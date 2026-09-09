@@ -28,6 +28,10 @@ repositório da aplicação.
   em `CrashLoopBackOff`). O pipeline liga a flag sozinho quando o GitHub
   Secret `NEW_RELIC_LICENSE_KEY` existir — ver `newrelic.tf` e a seção
   [CI/CD](#cicd).
+- Os 4 dashboards e os 6 alertas NRQL exigidos pela Etapa 5, como código via
+  provider `newrelic/newrelic` — gated por `var.enable_new_relic_dashboards`
+  (credencial separada: um User API Key, não a license key de ingestão acima).
+  Ver `newrelic_dashboards.tf`/`newrelic_alerts.tf` e a seção [CI/CD](#cicd).
 - **Sem IRSA** — cluster role e node role são a `LabRole` compartilhada, concessão
   deliberada documentada em
   [`ADR-006`](https://github.com/PedrosPinho/soat15-tech-challenge-01/blob/main/docs/architecture/adrs/ADR-006-labrole-compartilhada-sem-irsa.md)
@@ -75,7 +79,13 @@ branches atualiza a mesma infraestrutura.
 **Secrets do GitHub**: `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/
 `AWS_SESSION_TOKEN` (credenciais temporárias do Learner Lab, renovadas por
 `scripts/refresh-aws-secrets.sh` no repositório da aplicação) e,
-opcionalmente, `NEW_RELIC_LICENSE_KEY` (liga o `nri-bundle`, ver acima).
+opcionalmente, `NEW_RELIC_LICENSE_KEY` (liga o `nri-bundle`, ver acima). Para
+os dashboards/alertas, mais três (também opcionais, e independentes da
+license key): `NEW_RELIC_API_KEY` (User API Key, tipo `NRAK...` — em **New
+Relic → Perfil (canto inferior esquerdo) → API keys**, não é a mesma tela das
+license keys), `NEW_RELIC_ACCOUNT_ID` (Account ID numérico, na mesma tela de
+API keys) e `ALERT_NOTIFICATION_EMAIL` (opcional — sem ele os alertas ficam
+registrados na conta sem notificar ninguém).
 
 **Atenção a `var.cluster_version`**: precisa sempre bater com a versão que o
 cluster está rodando *de verdade* (não a que foi pedida na criação) — EKS não

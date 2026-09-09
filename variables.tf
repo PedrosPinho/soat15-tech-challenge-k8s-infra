@@ -56,3 +56,28 @@ variable "new_relic_license_key" {
   default     = ""
   sensitive   = true
 }
+
+variable "enable_new_relic_dashboards" {
+  description = "Liga os 4 dashboards e os alertas NRQL (newrelic_dashboards.tf/newrelic_alerts.tf), provisionados via provider newrelic/newrelic. Credencial separada da license key (essa é um User API Key) -- fica false até existir uma."
+  type        = bool
+  default     = false
+}
+
+variable "new_relic_api_key" {
+  description = "User API Key do New Relic (Personal API key, tipo NRAK -- não é a license key de ingestão) usada pelo provider newrelic/newrelic para criar dashboards e alertas. Passe via TF_VAR_new_relic_api_key."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "new_relic_account_id" {
+  description = "Account ID numérico da conta New Relic (visível na URL da UI ou em API keys > Account ID). Passe via TF_VAR_new_relic_account_id."
+  type        = number
+  default     = 0
+}
+
+variable "alert_notification_email" {
+  description = "E-mail que recebe os alertas NRQL (cria destination/channel/workflow no New Relic). Vazio = alertas ficam registrados na conta sem notificação ativa."
+  type        = string
+  default     = ""
+}
