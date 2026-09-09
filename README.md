@@ -23,6 +23,15 @@ repositório da aplicação.
   (`aws_ec2_tag`) para a auto-descoberta que o controller precisa.
 - `aws_ecr_repository` para a imagem da API, com lifecycle policy mantendo as
   últimas ~10 imagens.
+- `nri-bundle` (agente de infraestrutura do New Relic) via Helm — gated por
+  `var.enable_new_relic` (default `false`; sem license key válida o pod entra
+  em `CrashLoopBackOff`). O pipeline liga a flag sozinho quando o GitHub
+  Secret `NEW_RELIC_LICENSE_KEY` existir — ver `newrelic.tf` e a seção
+  [CI/CD](#cicd).
+- Os 4 dashboards e os 6 alertas NRQL exigidos pela Etapa 5, como código via
+  provider `newrelic/newrelic` — gated por `var.enable_new_relic_dashboards`
+  (credencial separada: um User API Key, não a license key de ingestão acima).
+  Ver `newrelic_dashboards.tf`/`newrelic_alerts.tf` e a seção [CI/CD](#cicd).
 - **Sem IRSA** — cluster role e node role são a `LabRole` compartilhada, concessão
   deliberada documentada em
   [`ADR-006`](https://github.com/PedrosPinho/soat15-tech-challenge-01/blob/main/docs/architecture/adrs/ADR-006-labrole-compartilhada-sem-irsa.md)
@@ -33,6 +42,42 @@ repositório da aplicação.
   apontando para um chart local ou a `kubectl_manifest` (provider `gavinbunney/kubectl`
   ou `hashicorp/kubernetes` via `kubernetes_manifest`), aplicado depois que a imagem
   já existir no ECR.
+
+## Diagrama de arquitetura
+
+```mermaid
+flowchart TB
+    ECR[(ECR\nsoat15-tc-oficina-api)]
+
+    subgraph EKS["EKS — soat15-tc-cluster (subnets públicas de db-infra)"]
+        NodeGroup["Managed node group\nt3.small, min 2 / max 4"]
+        LBController[AWS Load Balancer Controller]
+        MetricsServer[metrics-server]
+        Addons["vpc-cni / coredns / kube-proxy"]
+        NRBundle["nri-bundle (New Relic)\ngated por enable_new_relic"]
+        Pods["Pods da API\n(aplicados por soat15-tech-challenge-01)"]
+    end
+
+    NewRelicAPI["New Relic — dashboards/alertas\n(provider newrelic, gated por\nenable_new_relic_dashboards)"]
+    AuthLambdaState[["terraform_remote_state\nauth-lambda (endpoint p/ Synthetics)"]]
+    DbInfraState[["terraform_remote_state\ndb-infra (VPC/subnets/SGs)"]]
+
+    DbInfraState -.subnets/SGs.-> EKS
+    NodeGroup -.pull de imagem.-> ECR
+    NodeGroup --- Pods
+    LBController -.expõe.-> Pods
+    MetricsServer -.métricas p/ HPA.-> Pods
+    NRBundle -.CPU/memória/eventos.-> EKS
+    AuthLambdaState -.endpoint /health/ready.-> NewRelicAPI
+    NRBundle -.reporta para.-> NewRelicAPI
+```
+
+Este repositório não aplica os manifestos da aplicação (`deployment`/`service`/
+`hpa`/`secret`) — isso é feito pelo pipeline de `soat15-tech-challenge-01` via
+`kubectl apply` direto, depois que o cluster já existe. O que vive aqui é só a
+infraestrutura do cluster em si, o ECR, os add-ons, e — desde a Etapa 5 — o
+agente de infraestrutura do New Relic (`nri-bundle`) e os dashboards/alertas
+como código (`newrelic_dashboards.tf`/`newrelic_alerts.tf`).
 
 ## Dependências
 
@@ -55,8 +100,37 @@ terraform apply tfplan
 # smoke test pós-apply
 aws eks update-kubeconfig --name soat15-tc-cluster --region us-east-1
 kubectl get nodes
-kubectl get hpa -n oficina
+kubectl get hpa -n oficina-homolog   # ou oficina-prod
 ```
+
+## CI/CD
+
+Pipeline em `.github/workflows/terraform.yml`: `fmt` → `validate` → `tflint` →
+`plan` (em PR, comentado no PR) → `apply` (push em `homolog`/`main`) + smoke
+test `kubectl get nodes`/`wait --for=condition=Ready`. Homolog e prod
+**compartilham o mesmo cluster** (sem workspaces aqui — a separação é por
+namespace no lado da aplicação), então o `apply` de qualquer uma das duas
+branches atualiza a mesma infraestrutura.
+
+**Secrets do GitHub**: `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/
+`AWS_SESSION_TOKEN` (credenciais temporárias do Learner Lab, renovadas por
+`scripts/refresh-aws-secrets.sh` no repositório da aplicação) e,
+opcionalmente, `NEW_RELIC_LICENSE_KEY` (liga o `nri-bundle`, ver acima). Para
+os dashboards/alertas, mais três (também opcionais, e independentes da
+license key): `NEW_RELIC_API_KEY` (User API Key, tipo `NRAK...` — em **New
+Relic → Perfil (canto inferior esquerdo) → API keys**, não é a mesma tela das
+license keys), `NEW_RELIC_ACCOUNT_ID` (Account ID numérico, na mesma tela de
+API keys) e `ALERT_NOTIFICATION_EMAIL` (opcional — sem ele os alertas ficam
+registrados na conta sem notificar ninguém).
+
+**Atenção a `var.cluster_version`**: precisa sempre bater com a versão que o
+cluster está rodando *de verdade* (não a que foi pedida na criação) — EKS não
+suporta downgrade, e um diff pendente nesse atributo quebra o `apply` inteiro
+(os providers `kubernetes`/`helm` deste repositório, configurados a partir de
+atributos do `aws_eks_cluster`, param de conseguir autenticar enquanto o
+recurso tem qualquer mudança pendente). Se o `apply` começar a falhar com
+`system:anonymous cannot list resource "secrets"`, confira primeiro se a AWS
+não fez um upgrade de versão fora deste Terraform.
 
 ## Ciclo de sessão do Learner Lab
 
