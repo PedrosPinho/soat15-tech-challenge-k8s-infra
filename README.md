@@ -43,6 +43,42 @@ repositório da aplicação.
   ou `hashicorp/kubernetes` via `kubernetes_manifest`), aplicado depois que a imagem
   já existir no ECR.
 
+## Diagrama de arquitetura
+
+```mermaid
+flowchart TB
+    ECR[(ECR\nsoat15-tc-oficina-api)]
+
+    subgraph EKS["EKS — soat15-tc-cluster (subnets públicas de db-infra)"]
+        NodeGroup["Managed node group\nt3.small, min 2 / max 4"]
+        LBController[AWS Load Balancer Controller]
+        MetricsServer[metrics-server]
+        Addons["vpc-cni / coredns / kube-proxy"]
+        NRBundle["nri-bundle (New Relic)\ngated por enable_new_relic"]
+        Pods["Pods da API\n(aplicados por soat15-tech-challenge-01)"]
+    end
+
+    NewRelicAPI["New Relic — dashboards/alertas\n(provider newrelic, gated por\nenable_new_relic_dashboards)"]
+    AuthLambdaState[["terraform_remote_state\nauth-lambda (endpoint p/ Synthetics)"]]
+    DbInfraState[["terraform_remote_state\ndb-infra (VPC/subnets/SGs)"]]
+
+    DbInfraState -.subnets/SGs.-> EKS
+    NodeGroup -.pull de imagem.-> ECR
+    NodeGroup --- Pods
+    LBController -.expõe.-> Pods
+    MetricsServer -.métricas p/ HPA.-> Pods
+    NRBundle -.CPU/memória/eventos.-> EKS
+    AuthLambdaState -.endpoint /health/ready.-> NewRelicAPI
+    NRBundle -.reporta para.-> NewRelicAPI
+```
+
+Este repositório não aplica os manifestos da aplicação (`deployment`/`service`/
+`hpa`/`secret`) — isso é feito pelo pipeline de `soat15-tech-challenge-01` via
+`kubectl apply` direto, depois que o cluster já existe. O que vive aqui é só a
+infraestrutura do cluster em si, o ECR, os add-ons, e — desde a Etapa 5 — o
+agente de infraestrutura do New Relic (`nri-bundle`) e os dashboards/alertas
+como código (`newrelic_dashboards.tf`/`newrelic_alerts.tf`).
+
 ## Dependências
 
 Depende de [`db-infra`](https://github.com/PedrosPinho/soat15-tech-challenge-db-infra)
