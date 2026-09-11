@@ -1,0 +1,58 @@
+name: Destroy (manual)
+
+# Ferramenta permanente de disciplina de custo do Learner Lab
+# (PHASE_3_EXECUTION_GUIDE.md, Passo 9) -- nunca dispara sozinho, só via
+# "Run workflow" na aba Actions. Ordem correta ao destruir os 3 repos de
+# infra: auth-lambda primeiro, depois este (k8s-infra), depois db-infra por
+# último -- inversa da ordem de apply. Este repositório não usa workspaces
+# (homolog/prod compartilham o mesmo cluster), então não há input de
+# workspace aqui, diferente de db-infra/auth-lambda.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Digite "destroy" para confirmar'
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.9.5"
+
+jobs:
+  destroy:
+    name: Destroy
+    if: github.event.inputs.confirm == 'destroy'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - run: terraform init
+
+      - name: New Relic (credencial necessária mesmo só para destruir os 12 recursos já existentes)
+        # O provider newrelic exige uma api_key válida no Configure para
+        # qualquer operação, inclusive DELETE dos recursos que já existem no
+        # state -- sem isso o destroy falharia com 401 nos 12 recursos de
+        # newrelic_dashboards.tf/newrelic_alerts.tf antes mesmo de tentar
+        # apagar o resto (mesmo bug do terraform plan, ver commit anterior).
+        run: |
+          if [ -n "${{ secrets.NEW_RELIC_API_KEY }}" ] && [ -n "${{ secrets.NEW_RELIC_ACCOUNT_ID }}" ]; then
+            echo "TF_VAR_new_relic_api_key=${{ secrets.NEW_RELIC_API_KEY }}" >> "$GITHUB_ENV"
+            echo "TF_VAR_new_relic_account_id=${{ secrets.NEW_RELIC_ACCOUNT_ID }}" >> "$GITHUB_ENV"
+          fi
+
+      - run: terraform destroy -auto-approve -input=false
