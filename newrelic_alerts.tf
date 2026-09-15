@@ -137,20 +137,28 @@ resource "newrelic_nrql_alert_condition" "cpu_sustentada" {
 # Healthcheck/uptime via Synthetics -- monitor público batendo em /health/ready
 # através do API Gateway (rota adicionada em auth-lambda/terraform/api_gateway.tf,
 # sem autorizador, fora do prefixo /api/ que o catch-all cobre).
+#
+# count também depende do output de auth-lambda já existir: numa reconstrução do
+# zero, k8s-infra é aplicado antes de auth-lambda (ver README), então o remote
+# state ainda não tem esse output na primeira passada -- sem o try() aqui, o
+# apply inteiro falha no plan (não só este recurso). Reaplicar depois que
+# auth-lambda existir liga o monitor normalmente.
 resource "newrelic_synthetics_monitor" "healthcheck" {
-  count = var.enable_new_relic_dashboards ? 1 : 0
+  count = var.enable_new_relic_dashboards && try(data.terraform_remote_state.auth_lambda.outputs.api_gateway_endpoint, "") != "" ? 1 : 0
 
   status           = "ENABLED"
   name             = "Oficina — healthcheck /health/ready"
   period           = "EVERY_5_MINUTES"
-  uri              = "${data.terraform_remote_state.auth_lambda.outputs.api_gateway_endpoint}/health/ready"
+  uri              = "${try(data.terraform_remote_state.auth_lambda.outputs.api_gateway_endpoint, "")}/health/ready"
   type             = "SIMPLE"
   locations_public = ["AWS_US_EAST_1"]
   verify_ssl       = true
 }
 
 resource "newrelic_nrql_alert_condition" "healthcheck_falhando" {
-  count = var.enable_new_relic_dashboards ? 1 : 0
+  # Mesma condição do monitor acima -- sem ele criado (auth-lambda ainda não
+  # existe), não há o que indexar em newrelic_synthetics_monitor.healthcheck[0].
+  count = length(newrelic_synthetics_monitor.healthcheck) > 0 ? 1 : 0
 
   policy_id                    = newrelic_alert_policy.oficina[0].id
   type                         = "static"
