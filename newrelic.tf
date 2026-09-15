@@ -57,5 +57,10 @@ resource "helm_release" "nri_bundle" {
     value = "true"
   }
 
-  depends_on = [aws_eks_node_group.this]
+  # Também depende do LB controller: sem isso, os dois helm_release rodam em
+  # paralelo e o Service criado pelo chart do nri-bundle pode ser interceptado
+  # pelo webhook mutante do controller (mservice.elbv2.k8s.aws) antes do pod
+  # dele estar pronto -- "no endpoints available for service
+  # aws-load-balancer-webhook-service", visto num apply real.
+  depends_on = [aws_eks_node_group.this, helm_release.aws_load_balancer_controller]
 }
