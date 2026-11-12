@@ -7,7 +7,7 @@ repositório da aplicação.
 
 ## Escopo deste repositório
 
-- `aws_eks_cluster` + managed node group (`t3.small`, min 2 / max 4) nas subnets
+- `aws_eks_cluster` + managed node group (`t3.medium`, min 2 / max 4) nas subnets
   **públicas** da VPC exportada por
   [`db-infra`](https://github.com/PedrosPinho/soat15-tech-challenge-db-infra) —
   diverge do texto original de `PHASE_3_PLAN.md` ("subnets privadas"): como a VPC não
@@ -50,7 +50,7 @@ flowchart TB
     ECR[(ECR\nsoat15-tc-oficina-api)]
 
     subgraph EKS["EKS — soat15-tc-cluster (subnets públicas de db-infra)"]
-        NodeGroup["Managed node group\nt3.small, min 2 / max 4"]
+        NodeGroup["Managed node group\nt3.medium, min 2 / max 4"]
         LBController[AWS Load Balancer Controller]
         MetricsServer[metrics-server]
         Addons["vpc-cni / coredns / kube-proxy"]

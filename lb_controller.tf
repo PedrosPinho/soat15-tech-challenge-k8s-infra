@@ -18,9 +18,9 @@ resource "aws_ec2_tag" "public_subnet_elb" {
 }
 
 # Subnets privadas: sem nós hoje (cluster e node group inteiros nas subnets
-# públicas — ver eks.tf), mas já tagueadas para o NLB interno que a Etapa 2 do
-# PHASE_3_PLAN.md (VPC Link do API Gateway, repositório auth-lambda) vai precisar
-# criar. Evita repetir esta decisão de tagging num repositório futuro.
+# públicas — ver eks.tf), mas hoje recebem o ALB interno único do IngressGroup `oficina-<env>` (Fase 4, ADR-013: OS,
+# Billing e Execution declaram Ingress com o mesmo `group.name`), alvo do VPC Link do API
+# Gateway (repositório auth-lambda). Evita repetir esta decisão de tagging num repositório futuro.
 resource "aws_ec2_tag" "private_subnet_cluster" {
   for_each    = toset(data.terraform_remote_state.db_infra.outputs.private_subnet_ids)
   resource_id = each.value
