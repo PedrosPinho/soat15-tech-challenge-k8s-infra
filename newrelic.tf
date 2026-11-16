@@ -1,3 +1,8 @@
+# Fase 4 (revisão de capacidade, T5.3): `lowDataMode` já reduz o volume; o forwarder de logs
+# (`logging`) e o kube-state-metrics seguem ligados porque os dashboards/alertas dependem
+# deles. Com t3.medium há folga para os 3 serviços; se `kubectl get pods -A` mostrar
+# `Pending`, desligue primeiro `kubeEvents.enabled` (o de menor valor nos dashboards).
+#
 # nri-bundle: agente de infraestrutura do New Relic no cluster (CPU/memória de
 # pods e nós, eventos e estado do cluster, kube-state-metrics, forwarder de
 # logs do stdout JSON dos pods) -- ver Etapa 5 do PHASE_3_PLAN.md e

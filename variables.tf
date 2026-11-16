@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "lab_role_arn" {
   description = "ARN da LabRole pré-criada pelo AWS Academy Learner Lab (sem IRSA — ver ADR-006)"
   type        = string
-  default     = "arn:aws:iam::442534931336:role/LabRole"
+  default     = "arn:aws:iam::368596537549:role/LabRole"
 }
 
 variable "project_name" {
@@ -23,9 +23,9 @@ variable "cluster_version" {
 }
 
 variable "node_instance_type" {
-  description = "Tipo de instância do managed node group"
+  description = "Tipo de instância do managed node group. t3.medium (4 GiB) na Fase 4: três serviços + LB controller + metrics-server + nri-bundle não cabem com folga em t3.small (2 GiB); dois nós t3.medium continuam dentro do orçamento do Learner Lab."
   type        = string
-  default     = "t3.small"
+  default     = "t3.medium"
 }
 
 variable "node_min_size" {
