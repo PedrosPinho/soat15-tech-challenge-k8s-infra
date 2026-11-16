@@ -7,7 +7,7 @@ repositório da aplicação.
 
 ## Escopo deste repositório
 
-- `aws_eks_cluster` + managed node group (`t3.small`, min 2 / max 4) nas subnets
+- `aws_eks_cluster` + managed node group (`t3.medium`, min 2 / max 4) nas subnets
   **públicas** da VPC exportada por
   [`db-infra`](https://github.com/PedrosPinho/soat15-tech-challenge-db-infra) —
   diverge do texto original de `PHASE_3_PLAN.md` ("subnets privadas"): como a VPC não
@@ -32,6 +32,11 @@ repositório da aplicação.
   provider `newrelic/newrelic` — gated por `var.enable_new_relic_dashboards`
   (credencial separada: um User API Key, não a license key de ingestão acima).
   Ver `newrelic_dashboards.tf`/`newrelic_alerts.tf` e a seção [CI/CD](#cicd).
+- **Fase 4 (`newrelic_saga.tf`)**: dashboard "Saga / Microsserviços" (sagas iniciadas/finalizadas por hora, taxa de
+  compensação, duração, profundidade de filas e DLQs, throughput/erros por serviço) e 4 alertas na mesma política
+  (saga em `FALHA_COMPENSACAO`, mensagem em DLQ, taxa de compensação > 50 %, erro no webhook do Mercado Pago).
+  Lê os eventos customizados `SagaIniciada`, `SagaPassoExecutado`, `SagaFinalizada` e `FilaProfundidade`
+  emitidos pelos serviços (ver o README do OS Service, seção Observabilidade).
 - **Sem IRSA** — cluster role e node role são a `LabRole` compartilhada, concessão
   deliberada documentada em
   [`ADR-006`](https://github.com/PedrosPinho/soat15-tech-challenge-01/blob/main/docs/architecture/adrs/ADR-006-labrole-compartilhada-sem-irsa.md)
@@ -50,7 +55,7 @@ flowchart TB
     ECR[(ECR\nsoat15-tc-oficina-api)]
 
     subgraph EKS["EKS — soat15-tc-cluster (subnets públicas de db-infra)"]
-        NodeGroup["Managed node group\nt3.small, min 2 / max 4"]
+        NodeGroup["Managed node group\nt3.medium, min 2 / max 4"]
         LBController[AWS Load Balancer Controller]
         MetricsServer[metrics-server]
         Addons["vpc-cni / coredns / kube-proxy"]

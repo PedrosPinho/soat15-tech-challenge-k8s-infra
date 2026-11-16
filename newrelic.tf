@@ -1,3 +1,8 @@
+# Fase 4 (revisão de capacidade, T5.3): `lowDataMode` já reduz o volume; o forwarder de logs
+# (`logging`) e o kube-state-metrics seguem ligados porque os dashboards/alertas dependem
+# deles. Com t3.medium há folga para os 3 serviços; se `kubectl get pods -A` mostrar
+# `Pending`, desligue primeiro `kubeEvents.enabled` (o de menor valor nos dashboards).
+#
 # nri-bundle: agente de infraestrutura do New Relic no cluster (CPU/memória de
 # pods e nós, eventos e estado do cluster, kube-state-metrics, forwarder de
 # logs do stdout JSON dos pods) -- ver Etapa 5 do PHASE_3_PLAN.md e
@@ -57,5 +62,10 @@ resource "helm_release" "nri_bundle" {
     value = "true"
   }
 
-  depends_on = [aws_eks_node_group.this]
+  # Também depende do LB controller: sem isso, os dois helm_release rodam em
+  # paralelo e o Service criado pelo chart do nri-bundle pode ser interceptado
+  # pelo webhook mutante do controller (mservice.elbv2.k8s.aws) antes do pod
+  # dele estar pronto -- "no endpoints available for service
+  # aws-load-balancer-webhook-service", visto num apply real.
+  depends_on = [aws_eks_node_group.this, helm_release.aws_load_balancer_controller]
 }
