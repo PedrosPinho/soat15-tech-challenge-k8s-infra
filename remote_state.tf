@@ -6,7 +6,7 @@ data "terraform_remote_state" "db_infra" {
   workspace = "homolog"
 
   config = {
-    bucket = "soat15-tc-tfstate-442534931336"
+    bucket = "soat15-tc-tfstate-368596537549"
     key    = "db-infra/terraform.tfstate"
     region = "us-east-1"
   }
@@ -20,7 +20,7 @@ data "terraform_remote_state" "auth_lambda" {
   workspace = "homolog"
 
   config = {
-    bucket = "soat15-tc-tfstate-442534931336"
+    bucket = "soat15-tc-tfstate-368596537549"
     key    = "auth-lambda/terraform.tfstate"
     region = "us-east-1"
   }
